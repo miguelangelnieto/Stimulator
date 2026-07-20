@@ -1,5 +1,9 @@
-import { type Gio2_ } from "deno-gtk-py";
-import { Gio, GLib, type MainWindow } from "../main.ts";
+import {
+  type InputStream,
+  Subprocess,
+  SubprocessFlags,
+} from "@sigmasd/gtk/gio";
+import type { MainWindow } from "../main.ts";
 import { MESSAGES } from "./messages.ts";
 
 export class Indicator {
@@ -9,21 +13,18 @@ export class Indicator {
   #mainWindow: MainWindow;
   constructor(mainWindow: MainWindow) {
     this.#mainWindow = mainWindow;
-    const child = Gio.Subprocess.new(
+    const child = new Subprocess(
       [
         "deno",
         "run",
-        "--allow-env=DENO_PYTHON_PATH",
         "--allow-read",
         "--allow-ffi",
-        "--unstable-ffi",
         import.meta.resolve("./indicator_app.ts"),
       ],
-      Gio.SubprocessFlags.STDIN_PIPE
-        .__or__(Gio.SubprocessFlags.STDOUT_PIPE),
+      SubprocessFlags.STDIN_PIPE | SubprocessFlags.STDOUT_PIPE,
     );
-    this.#stdin = child.get_stdin_pipe();
-    this.#monitorStdout(child.get_stdout_pipe());
+    this.#stdin = child.getStdinPipe()!;
+    this.#monitorStdout(child.getStdoutPipe()!);
   }
 
   activate() {
@@ -46,24 +47,22 @@ export class Indicator {
   }
 
   #writeToStdin(message: string) {
-    this.#stdin.write_all_async(
-      Array.from(this.#encoder.encode(message)),
+    this.#stdin.writeAllAsync(
+      this.#encoder.encode(message),
       this.#io_priority,
     );
   }
 
-  #monitorStdout(stdoutPipe: Gio2_.InputStream) {
-    const readCallback = () => {
-      stdoutPipe.read_bytes_async(
+  #monitorStdout(stdoutPipe: InputStream) {
+    const decoder = new TextDecoder();
+    const readNext = () => {
+      stdoutPipe.readBytesAsync(
         512, /*buffer size*/
-        GLib.PRIORITY_DEFAULT,
-        undefined,
-        (_, __, asyncResult) => {
-          const message = stdoutPipe
-            .read_bytes_finish(asyncResult)
-            .get_data().decode("utf-8")
-            .valueOf()
-            .trim();
+        0, /*priority*/
+        (data) => {
+          const message = data && data.length > 0
+            ? decoder.decode(data).trim()
+            : MESSAGES.Empty;
 
           switch (message) {
             case MESSAGES.Show:
@@ -75,16 +74,15 @@ export class Indicator {
             case MESSAGES.Empty:
               // NOTE: the indicator have exited
               // the only reason for this currently is if the system doesn't support tray icons, so we stop polling data
-              return false;
+              return;
             default:
               throw new Error(`Incorrect message: '${message}'`);
           }
 
-          GLib.idle_add(readCallback);
+          readNext();
         },
       );
-      return false;
     };
-    GLib.idle_add(readCallback);
+    readNext();
   }
 }

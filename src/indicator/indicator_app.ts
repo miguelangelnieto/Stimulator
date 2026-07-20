@@ -1,62 +1,56 @@
 // This is a standalone application for the tray
 // It have is own imports
 import {
-  type AppIndicator3,
-  type Gtk3_ as Gtk_,
-  NamedArgument,
-  python,
-} from "deno-gtk-py";
-import { MESSAGES } from "./messages.ts";
+  Indicator,
+  IndicatorCategory,
+  IndicatorStatus,
+} from "@sigmasd/gtk/appindicator";
+import * as Gtk from "@sigmasd/gtk/gtk3";
+import {
+  ioAddWatch,
+  IOCondition,
+  UnixSignal,
+  unixSignalAdd,
+} from "@sigmasd/gtk/glib";
 import { APP_ID, UI_LABELS } from "../consts.ts";
-
-const gi = python.import("gi");
-gi.require_version("Gtk", "3.0");
-gi.require_version("AppIndicator3", "0.1");
-const Gtk: Gtk_.Gtk = python.import("gi.repository.Gtk");
-const GLib = python.import("gi.repository.GLib");
-const AppIndicator: AppIndicator3.AppIndicator = python.import(
-  "gi.repository.AppIndicator3",
-);
-const signal = python.import("signal");
+import { MESSAGES } from "./messages.ts";
 
 // since this app is used with ipc, this is a better name
 const sendMsg = console.log;
 
 if (import.meta.main) {
-  const indicator = AppIndicator.Indicator.new(
+  Gtk.init();
+
+  const indicator = new Indicator(
     `${APP_ID}-tray`,
     `${APP_ID}-tray`,
-    AppIndicator.IndicatorCategory.APPLICATION_STATUS,
+    IndicatorCategory.APPLICATION_STATUS,
   );
-  indicator.set_title(UI_LABELS.Stimulator);
+  indicator.setTitle(UI_LABELS.Stimulator);
 
-  const menu = Gtk.Menu();
+  const menu = new Gtk.Menu();
 
-  const showApp = Gtk.MenuItem(
-    new NamedArgument("label", UI_LABELS.Show),
-  );
-  const closeApp = Gtk.MenuItem(
-    new NamedArgument("label", UI_LABELS.Close),
-  );
+  const showApp = new Gtk.MenuItem(UI_LABELS.Show);
+  const closeApp = new Gtk.MenuItem(UI_LABELS.Close);
   showApp.connect(
     "activate",
     () => {
       sendMsg(MESSAGES.Show);
-      menu.remove(menu.get_children()[0]);
+      showApp.hide();
     },
   );
   closeApp.connect(
     "activate",
     () => {
       sendMsg(MESSAGES.Close);
-      Gtk.main_quit();
+      Gtk.mainQuit();
     },
   );
 
   let first_try = true;
-  GLib.io_add_watch(
+  ioAddWatch(
     0, /*stdin*/
-    GLib.IO_IN,
+    IOCondition.IN,
     () => {
       const buf = new Uint8Array(512);
       const n = Deno.stdin.readSync(buf);
@@ -67,36 +61,35 @@ if (import.meta.main) {
         .trim();
       switch (message) {
         case MESSAGES.Activate:
-          indicator.set_status(AppIndicator.IndicatorStatus.ACTIVE);
+          indicator.setStatus(IndicatorStatus.ACTIVE);
           // NOTE: if thhe indicator is not connected after being set to active, this means the system doesn't support tray icons, so exit
-          if (!indicator.props.connected.valueOf()) {
+          if (!indicator.props.connected) {
             // The icon might take some time to be active (happens in kde)
             // Give it one more chance
             if (!first_try) {
               // The user will recive this error in the logs:
               // `(.:11550): Gtk-CRITICAL **: 05:57:05.429: gtk_widget_get_scale_factor: assertion 'GTK_IS_WIDGET (widget)' failed`
               // becuase they don't have tray icon support, its harmless though
-              Gtk.main_quit();
+              Gtk.mainQuit();
             } else {
               first_try = false;
             }
           }
           break;
         case MESSAGES.Deactivate:
-          indicator.set_status(AppIndicator.IndicatorStatus.PASSIVE);
+          indicator.setStatus(IndicatorStatus.PASSIVE);
           break;
         case MESSAGES.Hide:
-          indicator.set_status(AppIndicator.IndicatorStatus.PASSIVE);
+          indicator.setStatus(IndicatorStatus.PASSIVE);
           break;
         case MESSAGES.Close:
-          Gtk.main_quit();
+          Gtk.mainQuit();
           break;
         case MESSAGES.showShowButton:
           showApp.show();
-          menu.prepend(showApp);
           break;
         case MESSAGES.HideShowButton:
-          menu.remove(menu.get_children()[0]);
+          showApp.hide();
           break;
         default:
           throw new Error(`Incorrect message: '${message}'`);
@@ -106,11 +99,18 @@ if (import.meta.main) {
     },
   );
 
+  // NOTE: the show item is always in the menu but only visible while the app
+  // is in the background (removing/re-adding it would drop its last reference)
+  menu.prepend(showApp);
   menu.append(closeApp);
-  menu.show_all();
-  indicator.set_menu(menu);
+  menu.showAll();
+  showApp.hide();
+  indicator.setMenu(menu);
 
-  signal.signal(signal.SIGINT, () => Gtk.main_quit());
+  unixSignalAdd(UnixSignal.SIGINT, () => {
+    Gtk.mainQuit();
+    return false;
+  });
 
   Gtk.main();
 }
