@@ -52,7 +52,7 @@
   <content_rating type="oars-1.1" />
 
   <releases>
-    <release version="1.20.0" date="2026-07-20">
+    <release version="2.0.1" date="2026-07-20">
         <description>
             <ul>
                 <li>Port to JS GTK (native js gtk bidings, drop python bridge)</li>
