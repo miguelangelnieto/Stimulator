@@ -14,6 +14,12 @@ Discussion in Matrix room:
   <img width='240' alt='Download on Flathub' src='https://dl.flathub.org/assets/badges/flathub-badge-i-en.png'/>
 </a>
 
+Standalone binaries and AppImages (x86_64/aarch64) are also published on every
+commit to master as
+<a href="https://github.com/sigmaSd/Stimulator/releases" target="_blank">nightly
+releases</a>. Download `stimulator-x86_64.AppImage` or
+`stimulator-aarch64.AppImage`, `chmod +x` it, and run it.
+
 ## Features
 
 - Overrides system setting and disables automatic suspending

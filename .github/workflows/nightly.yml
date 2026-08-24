@@ -21,6 +21,14 @@ jobs:
         with:
           deno-version: latest
 
+      - name: Build AppImage for Linux x86_64
+        run: |
+          ./scripts/build-appimage.ts x86_64 stimulator-x86_64.AppImage
+
+      - name: Build AppImage for Linux aarch64
+        run: |
+          ./scripts/build-appimage.ts aarch64 stimulator-aarch64.AppImage
+
       - name: Add localStorage polyfill import
         run: |
           sed -i '2i // This for stimulator compiled with deno compile\nimport "jsr:@sigma/deno-compile-extra@0.12.1/localStoragePolyfill";' src/main.ts
@@ -71,6 +79,11 @@ jobs:
           1. Download `stimulator-linux-aarch64`
           2. Make it executable: `chmod +x stimulator-linux-aarch64`
           3. Run: `./stimulator-linux-aarch64`
+
+          ### AppImage (x86_64 or aarch64)
+          1. Download `stimulator-x86_64.AppImage` or `stimulator-aarch64.AppImage`
+          2. Make it executable: `chmod +x stimulator-*.AppImage`
+          3. Run: `./stimulator-*.AppImage`
           EOF
 
 
@@ -78,4 +91,6 @@ jobs:
             --title "Nightly Build - (${{ steps.date.outputs.datetime }}) ${{ steps.sha.outputs.sha }}" \
             --notes-file release_notes.md \
             stimulator-linux-x86_64 \
-            stimulator-linux-aarch64
+            stimulator-linux-aarch64 \
+            stimulator-x86_64.AppImage \
+            stimulator-aarch64.AppImage
